@@ -16,12 +16,11 @@ namespace Worker
         {
             try
             {
-                var pgsql = OpenDbConnection("Server=db;Username=postgres;Password=postgres;");
+                var pgsql = OpenDbConnection("Host=db;Port=5432;Username=postgres;Password=postgres;");
                 var redisConn = OpenRedisConnection("redis");
                 var redis = redisConn.GetDatabase();
 
-                // Keep alive is not implemented in Npgsql yet. This workaround was recommended:
-                // https://github.com/npgsql/npgsql/issues/1214#issuecomment-235828359
+                // Keep alive command
                 var keepAliveCommand = pgsql.CreateCommand();
                 keepAliveCommand.CommandText = "SELECT 1";
 
@@ -31,12 +30,13 @@ namespace Worker
                     // Slow down to prevent CPU spike, only query each 100ms
                     Thread.Sleep(100);
 
-                    // Reconnect redis if down
+                    // Reconnect Redis if down
                     if (redisConn == null || !redisConn.IsConnected) {
                         Console.WriteLine("Reconnecting Redis");
                         redisConn = OpenRedisConnection("redis");
                         redis = redisConn.GetDatabase();
                     }
+
                     string json = redis.ListLeftPopAsync("votes").Result;
                     if (json != null)
                     {
@@ -46,10 +46,10 @@ namespace Worker
                         if (!pgsql.State.Equals(System.Data.ConnectionState.Open))
                         {
                             Console.WriteLine("Reconnecting DB");
-                            pgsql = OpenDbConnection("Server=db;Username=postgres;Password=postgres;");
+                            pgsql = OpenDbConnection("Host=db;Port=5432;Username=postgres;Password=postgres;");
                         }
                         else
-                        { // Normal +1 vote requested
+                        { 
                             UpdateVote(pgsql, vote.voter_id, vote.vote);
                         }
                     }
